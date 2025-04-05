@@ -96,11 +96,11 @@ def calculate():
             # 행운의 답변을 선택한 사람들이 더 내는 총 금액 (참가자 수에 따라 조정)
             total_extra = adjustment_amount * unlucky_count
             
-            # 1인당 추가 금액 (최대 3000원 제한)
-            extra_per_lucky = min(total_extra / lucky_count, max_difference)
+            # 1인당 추가 금액
+            extra_per_lucky = total_extra / lucky_count
             
-            # 1인당 할인 금액
-            discount_per_unlucky = total_extra / unlucky_count
+            # 행운이 아닌 참가자들은 모두 동일한 금액
+            unlucky_amount = round(base_amount - (adjustment_amount), -3)  # 1000원 단위로 반올림
             
             # 금액 계산
             for p in participants:
@@ -108,8 +108,8 @@ def calculate():
                     # 행운의 답변을 선택한 참가자는 추가 금액
                     result[p] = round(base_amount + extra_per_lucky, -3)  # 1000원 단위로 반올림
                 else:
-                    # 행운이 없는 참가자는 할인
-                    result[p] = round(base_amount - discount_per_unlucky, -3)  # 1000원 단위로 반올림
+                    # 행운이 없는 참가자는 할인 (모두 동일한 금액)
+                    result[p] = unlucky_amount
         else:
             # 모든 참가자가 행운의 답변을 선택한 경우
             for p in participants:
@@ -136,7 +136,7 @@ def calculate():
     # 최종 결과에서 행운/비행운 참가자 간의 차이가 3000원을 초과하는지 확인하고 조정
     if lucky_participants and unlucky_count > 0:
         max_lucky_amount = max([result[p] for p in lucky_participants])
-        min_unlucky_amount = min([result[p] for p in participants if p not in lucky_participants])
+        min_unlucky_amount = unlucky_amount  # 모두 동일한 금액이므로
         
         # 차이가 3000원 초과인 경우 차이를 줄이는 조정
         if max_lucky_amount - min_unlucky_amount > 3000:
@@ -151,10 +151,12 @@ def calculate():
             if final_difference != 0:
                 # 차이를 비행운 참가자들에게 균등하게 분배
                 adjustment_per_unlucky = final_difference / unlucky_count
+                unlucky_final_amount = unlucky_amount + adjustment_per_unlucky
+                unlucky_final_amount = round(unlucky_final_amount, -3)  # 1000원 단위로 다시 반올림
+                
                 for p in participants:
                     if p not in lucky_participants:
-                        result[p] += adjustment_per_unlucky
-                        result[p] = round(result[p], -3)  # 1000원 단위로 다시 반올림
+                        result[p] = unlucky_final_amount
     
     return jsonify({
         'luckyAnswer': lucky_answer,
