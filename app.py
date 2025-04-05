@@ -96,20 +96,30 @@ def calculate():
             # 행운의 답변을 선택한 사람들이 더 내는 총 금액 (참가자 수에 따라 조정)
             total_extra = adjustment_amount * unlucky_count
             
-            # 1인당 추가 금액
-            extra_per_lucky = total_extra / lucky_count
+            # 1인당 추가 금액 (최대 3000원 제한)
+            extra_per_lucky = min(total_extra / lucky_count, max_difference)
             
-            # 행운이 아닌 참가자들은 모두 동일한 금액
-            unlucky_amount = round(base_amount - (adjustment_amount), -3)  # 1000원 단위로 반올림
+            # 1인당 할인 금액
+            discount_per_unlucky = total_extra / unlucky_count
             
-            # 금액 계산
+            # 금액 계산 (반올림 전 원본 값 저장)
+            raw_results = {}
             for p in participants:
                 if p in lucky_participants:
                     # 행운의 답변을 선택한 참가자는 추가 금액
-                    result[p] = round(base_amount + extra_per_lucky, -3)  # 1000원 단위로 반올림
+                    raw_results[p] = base_amount + extra_per_lucky
                 else:
-                    # 행운이 없는 참가자는 할인 (모두 동일한 금액)
-                    result[p] = unlucky_amount
+                    # 행운이 없는 참가자는 할인
+                    raw_results[p] = base_amount - discount_per_unlucky
+            
+            # 1000원 단위로 반올림
+            for p in participants:
+                result[p] = round(raw_results[p], -3)  # 1000원 단위로 반올림
+                
+            # 최종 금액이 너무 작으면 100원 단위로 조정
+            for p in participants:
+                if result[p] < 1000:
+                    result[p] = round(raw_results[p], -2)  # 100원 단위로 반올림
         else:
             # 모든 참가자가 행운의 답변을 선택한 경우
             for p in participants:
@@ -123,40 +133,34 @@ def calculate():
     total_after_rounding = sum(result.values())
     difference = total_amount - total_after_rounding
     
-    # 차이가 있으면 무작위 참가자에게 할당하여 총액 맞추기
-    if difference != 0:
+    # 여기서 수정: 차이를 행운의 사용자에게 적용
+    if difference != 0 and lucky_participants:
+        # 차이를 행운의 사용자 수에 맞게 분배
+        adjustment_per_lucky = difference / len(lucky_participants)
+        remainder = difference
+        
+        for p in lucky_participants:
+            if p == lucky_participants[-1]:  # 마지막 행운의 사용자에게는 남은 차액 전부 적용
+                result[p] += remainder
+            else:
+                # 각 행운의 사용자에게 균등하게 분배 (정수로)
+                adjustment = int(adjustment_per_lucky)
+                result[p] += adjustment
+                remainder -= adjustment
+    elif difference != 0:  # 행운의 사용자가 없는 경우(거의 발생하지 않음)
+        # 한 명에게 전체 차액 적용
         random_participant = random.choice(participants)
         result[random_participant] += difference
     
-    # 최종 금액이 너무 작으면 100원 단위로 조정
-    for p in participants:
-        if result[p] < 1000:
-            result[p] = round(result[p], -2)  # 100원 단위로 반올림
-    
-    # 최종 결과에서 행운/비행운 참가자 간의 차이가 3000원을 초과하는지 확인하고 조정
-    if lucky_participants and unlucky_count > 0:
-        max_lucky_amount = max([result[p] for p in lucky_participants])
-        min_unlucky_amount = unlucky_amount  # 모두 동일한 금액이므로
-        
-        # 차이가 3000원 초과인 경우 차이를 줄이는 조정
-        if max_lucky_amount - min_unlucky_amount > 3000:
-            # 금액을 조정
-            for p in lucky_participants:
-                result[p] = min_unlucky_amount + 3000
-            
-            # 총액 다시 확인 후 조정
-            total_after_adjustment = sum(result.values())
-            final_difference = total_amount - total_after_adjustment
-            
-            if final_difference != 0:
-                # 차이를 비행운 참가자들에게 균등하게 분배
-                adjustment_per_unlucky = final_difference / unlucky_count
-                unlucky_final_amount = unlucky_amount + adjustment_per_unlucky
-                unlucky_final_amount = round(unlucky_final_amount, -3)  # 1000원 단위로 다시 반올림
-                
-                for p in participants:
-                    if p not in lucky_participants:
-                        result[p] = unlucky_final_amount
+    # 마지막 확인: 총액이 정확히 맞는지 검증
+    final_total = sum(result.values())
+    if final_total != total_amount:
+        # 여전히 차이가 있다면 첫 번째 행운의 참가자에게 조정
+        if lucky_participants:
+            result[lucky_participants[0]] += (total_amount - final_total)
+        else:
+            # 행운의 참가자가 없는 경우 첫 번째 참가자에게 조정
+            result[participants[0]] += (total_amount - final_total)
     
     return jsonify({
         'luckyAnswer': lucky_answer,
@@ -362,6 +366,14 @@ if __name__ == '__main__':
             justify-content: center;
             gap: 10px;
         }
+        .total-summary {
+            margin-top: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            display: inline-block;
+            font-weight: bold;
+        }
         
         /* 반응형 스타일 */
         @media (max-width: 768px) {
@@ -456,6 +468,7 @@ if __name__ == '__main__':
             <h2>Step 5: 행운의 결과</h2>
             <div id="luckyAnswerDisplay"></div>
             <div id="resultsContainer" class="results-container"></div>
+            <div id="totalSummary" class="total-summary"></div>
             <button onclick="resetGame()">다시 하기</button>
         </div>
     </div>
@@ -709,8 +722,12 @@ if __name__ == '__main__':
                     const resultsContainer = document.getElementById('resultsContainer');
                     resultsContainer.innerHTML = '';
                     
+                    // 결과 합계 계산
+                    let resultSum = 0;
+                    
                     participants.forEach(p => {
                         const isLucky = answers[p] === luckyAnswer;
+                        resultSum += result[p];
                         
                         const card = document.createElement('div');
                         card.className = 'result-card';
@@ -725,6 +742,12 @@ if __name__ == '__main__':
                         
                         resultsContainer.appendChild(card);
                     });
+                    
+                    // 총액 요약 표시
+                    document.getElementById('totalSummary').innerHTML = `
+                        <p>총 식사 금액: ${totalAmount.toLocaleString()}원</p>
+                        <p>총 분배 금액: ${resultSum.toLocaleString()}원</p>
+                    `;
                     
                     document.getElementById('step4').style.display = 'none';
                     document.getElementById('step5').style.display = 'block';
