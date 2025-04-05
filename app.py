@@ -80,9 +80,6 @@ def calculate():
     # 결과 계산
     result = {}
     
-    # 행운의 답변을 선택한 경우 추가 금액 설정 (2000원 고정)
-    extra_amount = 2000
-    
     if lucky_participants:
         # 행운의 답변 선택자 수
         lucky_count = len(lucky_participants)
@@ -90,11 +87,19 @@ def calculate():
         unlucky_count = len(participants) - lucky_count
         
         if unlucky_count > 0:
-            # 행운의 답변을 선택한 사람들이 더 내는 총 금액
-            total_extra = extra_amount * unlucky_count
-            # 1인당 추가 금액
-            extra_per_lucky = total_extra / lucky_count
-            # 할인 금액
+            # 최대 차이는 3000원으로 제한
+            max_difference = 3000
+            
+            # 1인당 기본 금액의 약 15% 정도를 조정 금액으로 설정하되, 최소 1000원에서 최대 3000원으로 제한
+            adjustment_amount = min(max(int(base_amount * 0.15), 1000), max_difference)
+            
+            # 행운의 답변을 선택한 사람들이 더 내는 총 금액 (참가자 수에 따라 조정)
+            total_extra = adjustment_amount * unlucky_count
+            
+            # 1인당 추가 금액 (최대 3000원 제한)
+            extra_per_lucky = min(total_extra / lucky_count, max_difference)
+            
+            # 1인당 할인 금액
             discount_per_unlucky = total_extra / unlucky_count
             
             # 금액 계산
@@ -127,6 +132,29 @@ def calculate():
     for p in participants:
         if result[p] < 1000:
             result[p] = round(result[p], -2)  # 100원 단위로 반올림
+    
+    # 최종 결과에서 행운/비행운 참가자 간의 차이가 3000원을 초과하는지 확인하고 조정
+    if lucky_participants and unlucky_count > 0:
+        max_lucky_amount = max([result[p] for p in lucky_participants])
+        min_unlucky_amount = min([result[p] for p in participants if p not in lucky_participants])
+        
+        # 차이가 3000원 초과인 경우 차이를 줄이는 조정
+        if max_lucky_amount - min_unlucky_amount > 3000:
+            # 금액을 조정
+            for p in lucky_participants:
+                result[p] = min_unlucky_amount + 3000
+            
+            # 총액 다시 확인 후 조정
+            total_after_adjustment = sum(result.values())
+            final_difference = total_amount - total_after_adjustment
+            
+            if final_difference != 0:
+                # 차이를 비행운 참가자들에게 균등하게 분배
+                adjustment_per_unlucky = final_difference / unlucky_count
+                for p in participants:
+                    if p not in lucky_participants:
+                        result[p] += adjustment_per_unlucky
+                        result[p] = round(result[p], -3)  # 1000원 단위로 다시 반올림
     
     return jsonify({
         'luckyAnswer': lucky_answer,
