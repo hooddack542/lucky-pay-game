@@ -4,7 +4,7 @@ Claude를 통한 바이브코딩으로 만든 행운의 더치페이 앱.
 
 Rander를 통해 배포중 입니다.
 
-[행운의 더치페이](https://lucky-pay-game.onrender.com)
+[행운의 더치페이](https://lucky-pay-game.onrender.com)  
 
 
 
